@@ -1,0 +1,278 @@
+-- ============================================
+-- 风花雪月 · 第 1 部分
+-- ============================================
+local Players      = game:GetService("Players")
+local RunService   = game:GetService("RunService")
+local UIS          = game:GetService("UserInputService")
+local player       = Players.LocalPlayer
+
+-- 加载 WindUI
+local WindUI = loadstring(game:HttpGet(
+    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+-- 创建窗口
+local Window = WindUI:CreateWindow({
+    Title = "风花雪月",
+    Icon = "wind",
+    Author = "风花雪月",
+    Size = UDim2.fromOffset(500, 400),
+    Theme = "Dark",
+    ToggleKey = Enum.KeyCode.RightShift,
+    Transparent = true,
+    Acrylic = true,
+})
+
+-- 标签页
+local HomeTab = Window:Tab({ Title = "主页", Icon = "home" })
+local CharTab = Window:Tab({ Title = "角色", Icon = "user" })
+
+-- ========== 状态变量 ==========
+local currentSpeed = 16
+local flying       = false
+local noclip       = false
+local showNames    = false
+
+-- ========== 工具函数 ==========
+local function getHumanoid()
+    local c = player.Character
+    if not c or not c.Parent then return nil end
+    return c:FindFirstChildOfClass("Humanoid")
+end
+
+local function getHRP()
+    local c = player.Character
+    if not c then return nil end
+    return c:FindFirstChild("HumanoidRootPart")
+end
+
+-- 平滑改速度
+local function applySpeed(target)
+    local h = getHumanoid()
+    if not h then return end
+    local start = h.WalkSpeed
+    local diff  = target - start
+    if math.abs(diff) < 0.5 then h.WalkSpeed = target return end
+    for i = 1, 10 do
+        task.wait(0.018)
+        local a = i / 10
+        a = 1 - (1 - a) ^ 2
+        h.WalkSpeed = start + diff * a
+    end
+    h.WalkSpeed = target
+end
+
+-- ========== 飞行 ==========
+local flyBV, flyBG
+
+local function stopFly()
+    if flyBV then flyBV:Destroy() flyBV = nil end
+    if flyBG then flyBG:Destroy() flyBG = nil end
+    local h = getHumanoid()
+    if h then h.PlatformStand = false end
+    flying = false
+end
+
+local function startFly()
+    local hrp = getHRP()
+    local h   = getHumanoid()
+    if not hrp or not h then return end
+
+    h.PlatformStand = true
+
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    flyBV.Velocity = Vector3.zero
+    flyBV.Parent   = hrp
+
+    flyBG = Instance.new("BodyGyro")
+    flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    flyBG.P = 1e4
+    flyBG.Parent = hrp
+
+    flying = true
+end
+
+RunService.RenderStepped:Connect(function()
+    if not flying then return end
+    local hrp = getHRP()
+    if not hrp or not flyBV then return end
+    local cam  = workspace.CurrentCamera
+    local move = Vector3.zero
+    if UIS:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
+    if move.Magnitude > 0 then move = move.Unit end
+    flyBV.Velocity = move * 80
+    flyBG.CFrame   = cam.CFrame
+end)
+
+-- ========== 穿墙 ==========
+RunService.Stepped:Connect(function()
+    if not noclip then return end
+    local c = player.Character
+    if not c then return end
+    for _, p in ipairs(c:GetDescendants()) do
+        if p:IsA("BasePart") then p.CanCollide = false end
+    end
+end)
+
+-- ========== 显示玩家名字 ==========
+local function addTag(target)
+    local c = target.Character
+    if not c then return end
+    local head = c:FindFirstChild("Head")
+    if not head or head:FindFirstChild("XBNameTag") then return end
+    local bg = Instance.new("BillboardGui")
+    bg.Name = "XBNameTag"
+    bg.Adornee = head
+    bg.Size = UDim2.new(0, 100, 0, 20)
+    bg.StudsOffset = Vector3.new(0, 2.5, 0)
+    bg.AlwaysOnTop = true
+    bg.Parent = head
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = target.Name
+    lbl.TextColor3 = Color3.fromRGB(120, 170, 255)
+    lbl.TextStrokeTransparency = 0.5
+    lbl.TextScaled = true
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Parent = bg
+end
+
+local function removeTag(target)
+    local c = target.Character
+    if not c then return end
+    local head = c:FindFirstChild("Head")
+    if not head then return end
+    local tag = head:FindFirstChild("XBNameTag")
+    if tag then tag:Destroy() end
+end
+
+local function refreshAllTags()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            if showNames then addTag(p) else removeTag(p) end
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function()
+        task.wait(1)
+        if showNames then addTag(p) end
+    end)
+end)
+
+-- ========== 角色重生自动恢复 ==========
+player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    applySpeed(currentSpeed)
+    if flying then stopFly() end
+end)
+-- ============================================
+-- 风花雪月 · 第 2 部分
+-- ============================================
+
+-- ============================================
+-- 一、主页
+-- ============================================
+HomeTab:Section({ Title = "风花雪月-力量传奇", TextXAlignment = "Left" })
+
+HomeTab:Paragraph({
+    Title = "制作时间：2026.10.15日",
+    Desc = "脚本创始者：风花雪月",
+    Image = "calendar",
+    ImageSize = 20,
+})
+
+HomeTab:Paragraph({
+    Title = "使用说明",
+    Desc = "左侧可切换至「角色」分类进行调整。\nRightShift 隐藏 / 显示窗口。",
+    Image = "info",
+    ImageSize = 20,
+})
+
+-- ============================================
+-- 二、角色
+-- ============================================
+CharTab:Section({ Title = "移动", TextXAlignment = "Left" })
+
+CharTab:Slider({
+    Title = "移动速度",
+    Desc = "范围 16 – 200",
+    Step = 1,
+    Value = { Min = 16, Max = 200, Default = 16 },
+    Callback = function(v)
+        currentSpeed = v
+        applySpeed(v)
+    end,
+})
+
+CharTab:Button({
+    Title = "↺  重置移速",
+    Desc = "恢复为默认 16",
+    Callback = function()
+        currentSpeed = 16
+        applySpeed(16)
+        WindUI:Notify({ Title = "已重置", Content = "移动速度已恢复", Icon = "rotate-ccw", Duration = 2 })
+    end,
+})
+
+CharTab:Section({ Title = "功能开关", TextXAlignment = "Left" })
+
+CharTab:Toggle({
+    Title = "飞行",
+    Desc = "WASD 控制方向，空格上升",
+    Value = false,
+    Callback = function(state)
+        if state then
+            startFly()
+            WindUI:Notify({ Title = "飞行 已开启", Icon = "plane", Duration = 2 })
+        else
+            stopFly()
+            WindUI:Notify({ Title = "飞行 已关闭", Icon = "plane", Duration = 2 })
+        end
+    end,
+})
+
+CharTab:Toggle({
+    Title = "穿墙",
+    Desc = "关闭角色所有碰撞",
+    Value = false,
+    Callback = function(state)
+        noclip = state
+        WindUI:Notify({
+            Title = state and "穿墙 已开启" or "穿墙 已关闭",
+            Icon = "shield-off",
+            Duration = 2,
+        })
+    end,
+})
+
+CharTab:Toggle({
+    Title = "显示所有玩家名称",
+    Desc = "在每位玩家头顶显示名字",
+    Value = false,
+    Callback = function(state)
+        showNames = state
+        refreshAllTags()
+        WindUI:Notify({
+            Title = state and "名字显示 已开启" or "名字显示 已关闭",
+            Icon = "tag",
+            Duration = 2,
+        })
+    end,
+})
+
+-- ============================================
+-- 加载完成
+-- ============================================
+WindUI:Notify({
+    Title = "风花雪月 已加载",
+    Content = "祝测试愉快 ✨",
+    Icon = "sparkles",
+    Duration = 4,
+})
